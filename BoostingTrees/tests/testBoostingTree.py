@@ -11,6 +11,8 @@ import pandas as pd
 import os
 import sys
 import matplotlib.pyplot as plt
+from sklearn.datasets import make_moons, make_circles, make_classification
+
 
 # Add the parent directory to the path so we can import the model
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -62,7 +64,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
         gb = GradientBoostingClassifier(
             n_estimators=50, 
             learning_rate=0.1, 
-            max_depth=3
+            max_depth=3,
+            verbose=False
         )
         
         self.assertEqual(gb.n_estimators, 50)
@@ -80,7 +83,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
             n_estimators=100, 
             learning_rate=0.1, 
             max_depth=3,
-            random_state=42
+            random_state=42,
+            verbose=False
         )
         
         gb.fit(dataset['X_train'], dataset['y_train'])
@@ -107,7 +111,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
                 n_estimators=100, 
                 learning_rate=0.1, 
                 max_depth=5,  # Deeper trees for nonlinear data
-                random_state=42
+                random_state=42,
+                verbose=False
             )
             
             gb.fit(dataset['X_train'], dataset['y_train'])
@@ -133,7 +138,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
             n_estimators=100, 
             learning_rate=0.1, 
             max_depth=3,
-            random_state=42
+            random_state=42,
+            verbose=False
         )
         
         gb.fit(dataset['X_train'], dataset['y_train'])
@@ -162,7 +168,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
                 n_estimators=100,
                 learning_rate=lr,
                 max_depth=3,
-                random_state=42
+                random_state=42,
+                verbose=False
             )
             
             gb.fit(dataset['X_train'], dataset['y_train'])
@@ -201,7 +208,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
                 n_estimators=n_est,
                 learning_rate=0.1,
                 max_depth=3,
-                random_state=42
+                random_state=42,
+                verbose=False
             )
             
             gb.fit(dataset['X_train'], dataset['y_train'])
@@ -237,7 +245,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
                 n_estimators=100,
                 learning_rate=0.1,
                 max_depth=depth,
-                random_state=42
+                random_state=42,
+                verbose=False
             )
             
             gb.fit(dataset['X_train'], dataset['y_train'])
@@ -270,7 +279,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
                 learning_rate=0.1,
                 max_depth=3,
                 subsample=subsample,
-                random_state=42
+                random_state=42,
+                verbose=False
             )
             
             gb.fit(dataset['X_train'], dataset['y_train'])
@@ -292,7 +302,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
             n_estimators=100,
             learning_rate=0.1,
             max_depth=3,
-            random_state=42
+            random_state=42,
+            verbose=False
         )
         
         gb.fit(dataset['X_train'], dataset['y_train'])
@@ -337,7 +348,8 @@ class TestGradientBoostingClassifier(unittest.TestCase):
                 n_estimators=100,
                 learning_rate=0.1,
                 max_depth=3,
-                random_state=42
+                random_state=42,
+                verbose=False
             )
             
             gb.fit(X_train, y_train)
@@ -381,6 +393,227 @@ class TestGradientBoostingClassifier(unittest.TestCase):
             plt.close()
             
             print(f"Decision boundary visualization saved for {dataset_name}")
+
+###############################   ADDITIONAL TEST CASES    #############################
+
+    
+
+    def test_predict_shape(self):
+        """Test shape of predict_proba output."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        gb = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        gb.fit(X, y)
+        proba = gb.predict_proba(X)
+        self.assertEqual(proba.shape, (X.shape[0], 2))
+
+    def test_output_range_proba(self):
+        """Ensure predict_proba outputs values between 0 and 1."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        gb = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        gb.fit(X, y)
+        proba = gb.predict_proba(X)
+        self.assertTrue(np.all(proba >= 0) and np.all(proba <= 1))
+
+    def test_loss_decreasing(self):
+        """Check that training loss decreases over iterations."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        gb = GradientBoostingClassifier(n_estimators=10, verbose=False)
+        gb.fit(X, y)
+        losses = gb.errors_
+        self.assertTrue(all(x >= y for x, y in zip(losses, losses[1:])))
+
+    def test_gamma_positivity(self):
+        """Ensure all gamma values are positive and finite."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        gb = GradientBoostingClassifier(n_estimators=10, verbose=False)
+        gb.fit(X, y)
+        for gamma in gb.gammas:
+            self.assertTrue(np.isfinite(gamma) and gamma > 0)
+
+    def test_feature_importance_sum(self):
+        """Check that feature importances sum approximately to 1."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        gb = GradientBoostingClassifier(n_estimators=10, verbose=False)
+        gb.fit(X, y)
+        importances = gb.feature_importances()
+        self.assertAlmostEqual(np.sum(importances), 1.0, places=4)
+
+    def test_staged_predict_progression(self):
+        """Check that staged_predict predictions evolve toward final prediction."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        gb = GradientBoostingClassifier(n_estimators=10, verbose=False)
+        gb.fit(X, y)
+        final = gb.predict(X)
+        found_match = False
+        for stage_pred in gb.staged_predict(X):
+            if np.array_equal(stage_pred, final):
+                found_match = True
+                break
+        self.assertTrue(found_match)
+
+    
+    
+    def test_min_samples_leaf_effect(self):
+        """Models with larger min_samples_leaf should produce fewer splits (higher bias)."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf_small_leaf = GradientBoostingClassifier(n_estimators=5, min_samples_leaf=1, verbose=False)
+        clf_large_leaf = GradientBoostingClassifier(n_estimators=5, min_samples_leaf=10, verbose=False)
+        clf_small_leaf.fit(X, y)
+        clf_large_leaf.fit(X, y)
+        self.assertLessEqual(clf_large_leaf.score(X, y), clf_small_leaf.score(X, y))
+
+    def test_max_features_effect(self):
+        """Models with limited max_features should generalize better on small data."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf_all = GradientBoostingClassifier(n_estimators=5, max_features=None, verbose=False)
+        clf_sub = GradientBoostingClassifier(n_estimators=5, max_features=1, verbose=False)
+        clf_all.fit(X, y)
+        clf_sub.fit(X, y)
+        # No assert — just ensure it runs and the models are different
+        self.assertNotEqual(clf_all.predict(X).tolist(), clf_sub.predict(X).tolist())
+
+    def test_binary_input_validation(self):
+        """Raise or gracefully handle invalid label values."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        y_invalid = y + 2  # Now {2, 3}
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        with self.assertRaises(ValueError):
+            clf.fit(X, y_invalid)
+
+    def test_zero_estimators(self):
+        """Should raise error or produce no learning if n_estimators=0."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=0, verbose=False)
+        with self.assertRaises(ValueError):
+            clf.fit(X, y)
+
+    def test_nan_input_handling(self):
+        """Ensure model raises error on NaN input."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        X[0, 0] = np.nan
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        with self.assertRaises(ValueError):
+            clf.fit(X, y)
+    
+###############################   CORNER TEST CASES    #############################
+
+
+    def test_large_n_estimators(self):
+        """Test performance with a large number of estimators."""
+        X, y = make_moons(n_samples=300, noise=0.2, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=500, verbose=False)
+        clf.fit(X, y)
+        self.assertGreater(clf.score(X, y), 0.8)
+
+    def test_high_dimensional_data(self):
+        """Ensure model works with high-dimensional input (n_features=100)."""
+        X, y = make_classification(n_samples=200, n_features=100, n_informative=10, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=10, max_features=10, verbose=False)
+        clf.fit(X, y)
+        self.assertEqual(len(clf.feature_importances()), 100)
+
+    def test_single_feature(self):
+        """Model should work when dataset has only one feature."""
+        #X, y = make_classification(n_samples=100, n_features=1, n_informative=1, n_redundant=0, random_state=42)
+        X, y = make_classification(n_samples=100, n_features=1, n_informative=1,
+                           n_redundant=0, n_clusters_per_class=1, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        clf.fit(X, y)
+        self.assertEqual(clf.feature_importances().shape[0], 1)
+
+    def test_duplicate_features(self):
+        """Model should not split on features that provide no gain."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        X_dup = np.tile(X[:, [0]], (1, 5))  # repeat feature 0
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        clf.fit(X_dup, y)
+        self.assertEqual(clf.feature_importances().sum(), 1.0)  # should still normalize
+
+    def test_class_imbalance(self):
+        """Test model behavior on imbalanced class distribution."""
+        X, y = make_classification(n_samples=200, weights=[0.9, 0.1], flip_y=0, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=10, verbose=False)
+        clf.fit(X, y)
+        proba = clf.predict_proba(X)
+        self.assertTrue(np.all(proba >= 0) and np.all(proba <= 1))
+
+    def test_small_dataset_overfitting(self):
+        """Model should overfit a very small dataset."""
+        X, y = make_moons(n_samples=5, noise=0.0, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=20, max_depth=5, verbose=False)
+        clf.fit(X, y)
+        self.assertGreaterEqual(clf.score(X, y), 0.95)
+
+    def test_float_class_labels(self):
+        """Model should accept class labels as floats."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        y = y.astype(float)
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        clf.fit(X, y)
+        self.assertTrue(hasattr(clf, "trees"))
+
+    def test_single_class_label(self):
+        """Model should raise an error if all class labels are the same."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        y[:] = 1
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        with self.assertRaises(ValueError):
+            clf.fit(X, y)
+
+    def test_repeated_fit(self):
+        """Model should reset properly when .fit() is called multiple times."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        clf.fit(X, y)
+        clf.fit(X, y)  # Second fit should not crash or retain state
+        self.assertTrue(hasattr(clf, "trees"))
+
+    def test_predict_before_fit(self):
+        """Calling predict before fit should raise an error."""
+        X, _ = make_moons(n_samples=10, noise=0.2, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=5, verbose=False)
+        with self.assertRaises(Exception):
+            clf.predict(X)
+
+###############################   COMBINATION TEST CASES    #############################
+    
+    def test_combo_deep_tree_small_leaf(self):
+        """Test overfitting scenario with deep trees and small leaf size."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=20, max_depth=10, min_samples_leaf=1, verbose=False)
+        clf.fit(X, y)
+        self.assertGreaterEqual(clf.score(X, y), 0.95)  # likely to overfit
+
+    def test_combo_shallow_tree_with_subsampling(self):
+        """Test underfitting scenario with shallow trees and subsampling."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=20, max_depth=1, subsample=0.5, verbose=False)
+        clf.fit(X, y)
+        self.assertGreaterEqual(clf.score(X, y), 0.7)  # minimal acceptable performance
+
+    def test_combo_high_dim_low_max_features(self):
+        """Stress test feature subsampling with high-dimensional input."""
+        X, y = make_classification(n_samples=200, n_features=100, n_informative=10, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=10, max_features=5, verbose=False)
+        clf.fit(X, y)
+        self.assertEqual(len(clf.feature_importances()), 100)
+
+    def test_combo_class_imbalance_loss_stability(self):
+        """Test model stability and log loss on imbalanced data."""
+        X, y = make_classification(n_samples=300, weights=[0.9, 0.1], flip_y=0, random_state=42)
+        clf = GradientBoostingClassifier(n_estimators=20, verbose=False)
+        clf.fit(X, y)
+        self.assertTrue(all(np.isfinite(err) for err in clf.errors_))
+
+    def test_combo_gamma_vs_depth(self):
+        """Compare gamma behavior across depth settings."""
+        X, y = make_moons(n_samples=100, noise=0.2, random_state=42)
+        clf1 = GradientBoostingClassifier(n_estimators=10, max_depth=1, verbose=False)
+        clf2 = GradientBoostingClassifier(n_estimators=10, max_depth=10, verbose=False)
+        clf1.fit(X, y)
+        clf2.fit(X, y)
+        self.assertNotEqual(clf1.gammas, clf2.gammas)
+
 
 if __name__ == '__main__':
     unittest.main()

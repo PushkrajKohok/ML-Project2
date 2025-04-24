@@ -56,7 +56,11 @@ class DecisionTree:
     def __init__(self, 
                 max_depth: int = 3, 
                 min_samples_split: int = 2,
-                min_impurity_decrease: float = 0.0):
+                min_impurity_decrease: float = 0.0,
+                min_samples_leaf: int = 1,
+                max_features: Optional[int] = None,
+                random_state: Optional[int] = None,
+                verbose=False):
         """
         Initialize a decision tree.
         
@@ -68,7 +72,19 @@ class DecisionTree:
         self.max_depth = max_depth
         self.min_samples_split = min_samples_split
         self.min_impurity_decrease = min_impurity_decrease
+        self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
+        self._rng = np.random.RandomState(random_state)  # Required for feature subsampling
+        self.verbose = verbose
+
+
         self.root = None
+        # tree = DecisionTree(max_depth=self.max_depth,
+        #                     min_samples_split=self.min_samples_split,
+        #                     min_impurity_decrease=self.min_impurity_decrease,
+        #                     min_samples_leaf=2  # <-- directly here
+        #                 )
+
     
     def fit(self, X: np.ndarray, y: np.ndarray, sample_weight: Optional[np.ndarray] = None) -> None:
         """
@@ -181,8 +197,15 @@ class DecisionTree:
         best_threshold = 0.0
         best_gain = -np.inf
         
-        # Loop through all features
-        for feature_idx in range(n_features):
+        features_to_consider = self._rng.choice(n_features, self.max_features, replace=False) \
+        if self.max_features is not None else range(n_features)
+
+        if hasattr(self, 'verbose') and self.verbose:
+            print(f"Split: considering {len(features_to_consider)} feature(s)")
+
+        for feature_idx in features_to_consider:
+
+
             # Get unique values of the feature
             feature_values = X[:, feature_idx]
             thresholds = np.unique(feature_values)
@@ -274,7 +297,10 @@ class GradientBoostingClassifier:
                 min_samples_split: int = 2,
                 min_impurity_decrease: float = 0.0,
                 subsample: float = 1.0,
-                random_state: Optional[int] = None):
+                random_state: Optional[int] = None,
+                min_samples_leaf: int = 1,
+                max_features: Optional[int] = None,
+                verbose=False):
         """
         Initialize the gradient boosting classifier.
         
@@ -294,6 +320,13 @@ class GradientBoostingClassifier:
         self.min_impurity_decrease = min_impurity_decrease
         self.subsample = subsample
         self.random_state = random_state
+        
+        self.gammas = []
+        self.errors_ = []
+        self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
+        self._rng = np.random.RandomState(random_state)
+        self.verbose = verbose
         
         self.trees = []
         self.initial_prediction = None
@@ -320,6 +353,12 @@ class GradientBoostingClassifier:
         if len(self.classes_) > 2:
             raise ValueError("This implementation only supports binary classification")
         
+        if not np.all(np.isin(np.unique(y), [0, 1, -1])):
+            raise ValueError("Labels must be binary (0, 1) or (-1, 1).")
+
+        if len(self.classes_) < 2:
+            raise ValueError("Only one class present in labels. Gradient boosting requires two classes.")
+
         # Map classes to 0, 1 encoding
         y_binary = np.zeros(len(y), dtype=np.int64)
         y_binary[y == self.classes_[1]] = 1
@@ -355,6 +394,16 @@ class GradientBoostingClassifier:
         """
         return y_true - self._sigmoid(y_pred)
     
+    def _compute_optimal_gamma(self, y_true, current_pred, tree_pred):
+        """
+        Compute optimal gamma (step size) for log loss.
+        """
+        proba = self._sigmoid(current_pred)
+        numerator = np.sum((y_true - proba) * tree_pred)
+        denominator = np.sum(proba * (1 - proba) * tree_pred ** 2) + 1e-10  # avoid divide-by-zero
+        return numerator / denominator
+
+    
     def fit(self, X: np.ndarray, y: np.ndarray) -> 'GradientBoostingClassifier':
         """
         Build a gradient boosted classifier from the training set (X, y).
@@ -366,6 +415,13 @@ class GradientBoostingClassifier:
         Returns:
             self
         """
+        if np.isnan(X).any() or np.isnan(y).any():
+            raise ValueError("Input contains NaN. Please preprocess your data.")
+
+        if self.n_estimators < 1:
+            raise ValueError("n_estimators must be at least 1.")
+
+
         # Convert target to binary encoding if needed
         y_binary = self._to_binary_encoding(y)
         
@@ -391,7 +447,11 @@ class GradientBoostingClassifier:
             tree = DecisionTree(
                 max_depth=self.max_depth,
                 min_samples_split=self.min_samples_split,
-                min_impurity_decrease=self.min_impurity_decrease
+                min_impurity_decrease=self.min_impurity_decrease,
+                min_samples_leaf=self.min_samples_leaf,
+                max_features=self.max_features,
+                random_state=self.random_state,
+                verbose=self.verbose
             )
             
             # Sample data for this tree if subsample < 1
@@ -414,7 +474,25 @@ class GradientBoostingClassifier:
             self.trees.append(tree)
             
             # Update predictions (apply learning rate)
-            predictions += self.learning_rate * tree.predict(X)
+            # predictions += self.learning_rate * tree.predict(X)
+            # self.gammas.append(1.0)  # Assuming gamma=1.0 for simplicity
+
+            tree_pred = tree.predict(X)
+            gamma_m = self._compute_optimal_gamma(y_binary, predictions, tree_pred)
+            
+            if self.verbose:
+                print(f"Tree {i+1}: Computed gamma_m = {gamma_m:.6f}")
+
+            predictions += self.learning_rate * gamma_m * tree_pred
+            self.gammas.append(gamma_m)
+
+            
+            # Track training loss
+            proba = self._sigmoid(predictions)
+            eps = 1e-15
+            loss = -np.mean(y_binary * np.log(proba + eps) + (1 - y_binary) * np.log(1 - proba + eps))
+            self.errors_.append(loss)
+
         
         return self
     
@@ -472,6 +550,10 @@ class GradientBoostingClassifier:
         # Add up contributions from each tree
         for tree in self.trees:
             predictions += self.learning_rate * tree.predict(X)
+            # Track training loss
+            proba = self._sigmoid(predictions)
+            eps = 1e-15
+
             
         return predictions
     
@@ -518,3 +600,11 @@ class GradientBoostingClassifier:
         if np.sum(feature_counts) > 0:
             return feature_counts / np.sum(feature_counts)
         return feature_counts
+
+    def staged_predict(self, X: np.ndarray):
+        """Generator yielding predictions after each boosting stage."""
+        predictions = np.full(X.shape[0], self.initial_prediction)
+        for i, tree in enumerate(self.trees):
+            predictions += self.learning_rate * tree.predict(X)
+            proba = self._sigmoid(predictions)
+            yield np.where(proba >= 0.5, self.classes_[1], self.classes_[0])
