@@ -4,29 +4,17 @@
 ## Fnu Hussain Bin Yousuf (A20580905)
 ## Pushkraj Kohok (A20592796)
 ## Rohit Lahori (A20582911)
-## Rajni Pawar ()
+## Rajni Pawar (A20583682)
 
 ---
 
 ## Boosting Trees
 
-Implement again from first principles the gradient-boosting tree classification algorithm (with the usual fit-predict interface as in Project 1) as described in Sections 10.9-10.10 of Elements of Statistical Learning (2nd Edition). Answer the questions below as you did for Project 1. In this assignment, you'll be responsible for developing your own test data to ensure that your implementation is satisfactory. (Hint: Use the same directory structure as in Project 1.)
-
-The same "from first principals" rules apply; please don't use SKLearn or any other implementation. Please provide examples in your README that will allow the TAs to run your model code and whatever tests you include. As usual, extra credit may be given for an "above and beyond" effort.
-
-As before, please clone this repo, work on your solution as a fork, and then open a pull request to submit your assignment. *A pull request is required to submit and your project will not be graded without a PR.*
-
-Put your README below. Answer the following questions.
-
-* What does the model you have implemented do and when should it be used?
-* How did you test your model to determine if it is working reasonably correctly?
-* What parameters have you exposed to users of your implementation in order to tune performance? (Also perhaps provide some basic usage examples.)
-* Are there specific inputs that your implementation has trouble with? Given more time, could you work around these or is it fundamental?
-
 
 ## What does the model you have implemented do and when should it be used?
 
-We have implemented a binary classification model using **Gradient Boosting Decision Trees**, trained from first principles with logistic loss. The model combines multiple shallow regression trees where each tree corrects the residuals (pseudo-gradients) of the previous ensemble. The model's predictions are additive in the function space and refined stage-by-stage using an optimized step size \( \gamma_m \), improving both accuracy and convergence.
+We have implemented a binary classification model using **Gradient Boosting Decision Trees**, trained from first principles with logistic loss. The model combines multiple shallow regression trees where each tree corrects the residuals (pseudo-gradients) of the previous ensemble. The model's predictions are additive in the function space and refined stage-by-stage using an optimized step size \( γm \), improving both accuracy and convergence.
+
 
 This model is most effective in structured/tabular datasets, especially when feature relationships are non-linear and performance is improved by capturing high-order interactions. It is suitable for binary classification tasks where interpretability (via feature importances and loss monitoring) is also important.
 
@@ -50,9 +38,9 @@ We employed a comprehensive and multi-layered testing strategy:
    - Edge cases (NaN handling, all-labels-equal, repeated `.fit()`)
    - Stress and combination tests (deep trees + small leaves, high-dim with max_features)
 
-These tests are located in the `tests/testBoostingTree.py` file and can be run using:
+These tests are located in the `tests/test_gradient_boosting_classifier.py` file and can be run using:
 ```bash
-python -m unittest tests/testBoostingTree.py
+pytest -v tests/test_gradient_boosting_classifier.py
 ```
 
 ---
@@ -112,21 +100,37 @@ This project involves the implementation of a binary classification algorithm ba
 
 Gradient Boosting is an ensemble method that builds a sequence of weak learners (typically decision trees) where each new learner corrects the errors of the existing ensemble. Our implementation is focused on binary classification using the **logistic loss function** and supports the following core features:
 
-- Initialization based on log-odds:
-  $$ F_0(x) = \log\left(rac{p}{1 - p}
-ight) $$
-  where \( p \) is the proportion of positive samples.
+  ## How It Works
+
+1. **Initialization (log-odds of the prior)**  
+   ```text
+   F₀(x) = log(p / (1 - p))
+   where p = (1/n) · ∑ᵢ yᵢ
+
 
 - Computation of residuals (negative gradients):
-  $$ r_i^{(m)} = y_i - \sigma(F_{m-1}(x_i)) $$
+  ```text
+  rᵢ⁽ᵐ⁾ = yᵢ – sigmoid(Fₘ₋₁(xᵢ)), where
+  sigmoid(z) = 1 / (1 + exp(–z))
+
 
 - Tree updates scaled by an optimal gamma:
-  $$
-  \gamma_m = rac{\sum_i (y_i - \sigma(F_{m-1}(x_i))) \cdot h_m(x_i)}{\sum_i \sigma(F_{m-1}(x_i)) (1 - \sigma(F_{m-1}(x_i))) \cdot h_m(x_i)^2}
-  $$
+  ```text
+  γⱼᵐ = ∑_{i∈Rⱼᵐ} (yᵢ – pᵢ)
+      ─────────────────────── , 
+      ∑_{i∈Rⱼᵐ} pᵢ (1 – pᵢ)
+  where pᵢ = sigmoid(Fₘ₋₁(xᵢ))
+
+- Model update with shrinkage
+  ```text
+  Fₘ(x) = Fₘ₋₁(x) + ν · ∑ⱼ γⱼᵐ · I{x ∈ Rⱼᵐ}
 
 - Log-loss convergence tracking across iterations
-- Visualization of decision boundaries, gamma evolution, feature importances, and loss progression
+  ```text
+  L⁽ᵐ⁾ = – (1/n) · ∑ᵢ [ yᵢ·log(pᵢ) + (1–yᵢ)·log(1–pᵢ) ]
+  where pᵢ = sigmoid(Fₘ(xᵢ))
+
+- Visualization of decision boundaries, gamma evolution, feature importances, and loss progression.
 
 The final model is highly configurable, robust, and extensively tested.
 
@@ -162,50 +166,32 @@ The model supports the following key hyperparameters for tuning:
 ##  Complete Test Case Inventory
 
 ###  Original Functional Tests
-1. **test_initialization** – Tests basic instantiation of the model.
-2. **test_linear_data** – Evaluates model accuracy on linearly separable data.
-3. **test_nonlinear_data** – Tests accuracy on moons and circles datasets.
-4. **test_gaussian_data** – Accuracy check on clustered Gaussian blobs.
-5. **test_learning_rate** – Compares model accuracy across learning rates.
-6. **test_n_estimators** – Measures accuracy impact of more trees.
-7. **test_max_depth** – Analyzes tree depth influence on overfitting.
-8. **test_subsample** – Tests effect of row-wise subsampling.
-9. **test_predict_proba** – Confirms probabilities lie in [0, 1].
-10. **test_visualization** – Generates and saves boundary plots.
+1. **test_init_defaults** – Tests default hyper-parameters.
+2. **test_predict_before_fit** – Ensures predict() cannot be called before fit().
+3. **test_zero_estimators** –  Verifies that n_estimators=0 raises a ValueError.
 
 ###  Functional Extension Tests
-11. **test_predict_shape** – Ensures `predict_proba()` has correct shape (n, 2).
-12. **test_output_range_proba** – All probabilities are valid.
-13. **test_loss_decreasing** – Log loss should decline monotonically.
-14. **test_gamma_positivity** – Gamma values must be finite and > 0.
-15. **test_feature_importance_sum** – Importance scores should sum to ~1.
-16. **test_staged_predict_progression** – Staged predictions should converge.
+4. **test_learns_problems** –  Checks that the model learns on linearly separable, moons, and circles datasets.
+5. **test_learning_robustness** – Parametrized test across learning rates to ensure robust accuracy on moons.
+6. **test_n_estimators_increase_score** – Checks that accuracy improves (or stays above threshold) as n_estimators increases.
+7. **test_reproducibility** – Verifies identical predictions given the same seed and that training loss is non-increasing and finite.
+8. **test_feature_importance_sum** –  Ensures feature importance scores sum to 1 and are non-negative.
 
 ###  Corner Case Tests
-17. **test_large_n_estimators** – Tests model capacity with 500 trees.
-18. **test_high_dimensional_data** – Supports 100+ features.
-19. **test_single_feature** – Handles univariate inputs.
-20. **test_duplicate_features** – Identical features shouldn’t confuse splits.
-21. **test_class_imbalance** – Handles skewed class distributions.
-22. **test_small_dataset_overfitting** – Overfits 5-sample dataset.
-23. **test_float_class_labels** – Handles float labels like 0.0 and 1.0.
-24. **test_single_class_label** – Raises error if all y are identical.
-25. **test_repeated_fit** – Supports refitting on the same object.
-26. **test_predict_before_fit** – Prevents prediction before training.
-27. **test_nan_input_handling** – Raises error on NaN inputs.
+9. **test_nan_input** –  Confirms that NaNs in X raise a ValueError during fit().
+10. **test_single_class_error** – GEnsures that fitting on a single-class target raises a ValueError.
+11. **test_near_perfect_collinearity** – Verifies training succeeds with nearly duplicate features.
+12. **test_large_n_estimators_runtime** – Stress‑test: checks runtime and accuracy with 300 trees.
 
-###  Combination Stress Tests
-28. **test_combo_deep_tree_small_leaf** – Overfitting: deep trees + small leaves.
-29. **test_combo_shallow_tree_with_subsampling** – Underfitting: shallow + sampled data.
-30. **test_combo_high_dim_low_max_features** – High-dim input + low `max_features`.
-31. **test_combo_class_imbalance_loss_stability** – Monitors loss under imbalance.
-32. **test_combo_gamma_vs_depth** – Tests gamma variability by depth.
+###  Additional Tests
+13. **test_subsample_robustness** – Ensures model learns even with row subsampling (subsample<1)
+14. **test_max_depth_effect** –  Compares shallow vs deep trees to confirm deeper trees outperform by a margin.
 
 ---
 
 ##  Visual Analysis Components
 
-Our `Final_notebook.ipynb` includes the following visualizations:
+Our `BoostingTreeVisualization.ipynb` includes the following visualizations:
 
 - Log-loss curves over iterations
 - Gamma values per tree
@@ -221,11 +207,15 @@ Our `Final_notebook.ipynb` includes the following visualizations:
 Used analytic derivation for optimal scaling per iteration to ensure fast convergence and minimized loss.
 
 ###  Tree-based Feature Importance:
-Calculated using gain-per-split, normalized:
-\[
-\text{importance}_j = \sum \text{gain}_{j} \quad \text{then normalized:} \sum_j \text{importance}_j = 1
-\]
+Calculated as the total split-gain per feature, then normalized so that all importances sum to 1:
 
+ ```text
+ # 1. Raw importance: sum of gains for feature j across all splits
+ importance_j = sum_{splits s where feature = j} gain_s
+
+ # 2. Normalization: divide by total importance
+ importance_j = importance_j / sum_{k=1}^p importance_k
+ ```
 ###  Sample and Feature Subsampling:
 Implemented `subsample` and `max_features` for bias-variance tradeoffs and improved generalization.
 
