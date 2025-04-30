@@ -1,13 +1,3 @@
-# Project 2
-
-# Group Members:- 
-## Fnu Hussain Bin Yousuf (A20580905)
-## Pushkraj Kohok (A20592796)
-## Rohit Lahori (A20582911)
-## Rajni Pawar (A20583682)
-
----
-
 ## Boosting Trees
 
 
